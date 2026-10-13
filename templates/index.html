@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mumbai Bus Tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  #bar { padding: 10px; background: #1f3a5f; color: #fff;
+         display: flex; gap: 12px; align-items: center; }
+  #map { height: calc(100vh - 50px); }
+</style>
+</head>
+<body>
+<div id="bar">
+  <b>Mumbai Bus Tracker</b>
+  <select id="routeSel"></select>
+  <span id="status"></span>
+  <span style="margin-left:auto">{{ username }} ({{ role }}) &nbsp;
+    <a href="/logout" style="color:#fff">Logout</a>
+    {% if role == 'admin' %}&nbsp; <a href="/admin" style="color:#fff">Admin</a>{% endif %}</span>
+</div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([19.03, 72.84], 13);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const sel = document.getElementById('routeSel');
+const statusEl = document.getElementById('status');
+const stopLayer = L.layerGroup().addTo(map);
+const busLayer = L.layerGroup().addTo(map);
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  return r.json();
+}
+
+async function loadRoutes() {
+  const routes = await getJSON('/api/routes');
+  routes.forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.route_no;
+    o.textContent = r.route_no;
+    sel.appendChild(o);
+  });
+  await loadStops();
+}
+
+async function loadStops() {
+  stopLayer.clearLayers();
+  const stops = await getJSON('/api/route/' + sel.value + '/stops');
+  const pts = stops.map(s => [s.latitude, s.longitude]);
+  L.polyline(pts, { color: '#1f3a5f' }).addTo(stopLayer);
+
+  stops.forEach(s => {
+    const m = L.circleMarker([s.latitude, s.longitude], {
+      radius: 7, color: '#1f3a5f', fillColor: '#ffffff', fillOpacity: 1
+    }).addTo(stopLayer);
+    m.bindTooltip(s.stop_seq + '. ' + s.name);
+    m.on('click', async () => {
+      const etas = await getJSON('/api/eta/' + s.stop_id);
+      let html = '<b>' + s.name + '</b><br>';
+      if (etas.length) {
+        html += etas.map(e =>
+          e.route_no + ' (' + e.reg_no + '): ' +
+          (e.minutes_away <= 0 ? 'due' : e.minutes_away + ' min') +
+          (e.current_delay_min > 0 ? ' [+' + e.current_delay_min + ' min delay]' : '')
+        ).join('<br>');
+      } else {
+        html += 'No buses coming';
+      }
+      m.bindPopup(html).openPopup();
+    });
+  });
+
+  if (pts.length) map.fitBounds(pts, { padding: [40, 40] });
+  await loadBuses();
+}
+
+async function loadBuses() {
+  const buses = await getJSON('/api/live');
+  busLayer.clearLayers();
+  buses.filter(b => b.route_no === sel.value).forEach(b => {
+    L.marker([b.latitude, b.longitude]).addTo(busLayer)
+      .bindTooltip(b.reg_no + ' | ' + b.speed_kmph + ' km/h',
+                   { permanent: true, direction: 'top' });
+  });
+  statusEl.textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+sel.addEventListener('change', loadStops);
+loadRoutes();
+setInterval(loadBuses, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Driver - Mumbai Bus Tracker</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #f4f6f9; }
+  #bar { padding: 10px; background: #1f3a5f; color: #fff; display: flex;
+         gap: 12px; align-items: center; }
+  #bar a { color: #fff; }
+  .card { background: #fff; margin: 12px; padding: 14px; border-radius: 8px; }
+  select, input, button { padding: 8px; margin: 4px 4px 4px 0; }
+  button { background: #1f3a5f; color: #fff; border: 0; border-radius: 4px; }
+  button.red { background: #b00020; }
+  #msg { margin: 12px; padding: 10px; border-radius: 6px; display: none; }
+  .ok { background: #d9f2e0; } .bad { background: #fbd9dc; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <b>Driver Console</b>
+  <span style="margin-left:auto">{{ username }} &nbsp;
+    <a href="/logout">Logout</a></span>
+</div>
+
+<div id="msg"></div>
+
+<div class="card">
+  <b>My trips</b><br>
+  <select id="tripSel"></select>
+  <button onclick="act('/api/driver/start')">Start trip</button>
+  <button class="red" onclick="act('/api/driver/end')">End trip</button>
+</div>
+
+<div class="card">
+  <b>Position and arrivals</b><br>
+  <select id="stopSel"></select><br>
+  <button onclick="pingStop()">Ping at selected stop</button>
+  <button onclick="pingGPS()">Ping with device GPS</button><br>
+  Delay (min, demo): <input id="delay" type="number" value="0" min="0" style="width:70px">
+  <button onclick="arrive()">Mark arrived at selected stop</button>
+</div>
+
+<script>
+let trips = [];
+let stops = [];
+const tripSel = document.getElementById('tripSel');
+const stopSel = document.getElementById('stopSel');
+const msg = document.getElementById('msg');
+
+function show(text, bad) {
+  msg.textContent = text;
+  msg.className = bad ? 'bad' : 'ok';
+  msg.style.display = 'block';
+}
+
+async function post(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  const j = await r.json();
+  show(j.error ? 'Error: ' + j.error : j.message, !!j.error);
+  return j;
+}
+
+async function loadTrips() {
+  const keep = tripSel.value;
+  trips = await (await fetch('/api/driver/trips')).json();
+  tripSel.innerHTML = '';
+  trips.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t.trip_id;
+    o.textContent = '#' + t.trip_id + '  ' + t.route_no + '  ' +
+                    t.reg_no + '  [' + t.status + ']';
+    tripSel.appendChild(o);
+  });
+  if (keep) tripSel.value = keep;
+  await loadStops();
+}
+
+async function loadStops() {
+  stopSel.innerHTML = '';
+  stops = [];
+  const t = trips.find(x => x.trip_id == tripSel.value);
+  if (!t) return;
+  stops = await (await fetch('/api/route/' + t.route_no + '/stops')).json();
+  stops.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.stop_id;
+    o.textContent = s.stop_seq + '. ' + s.name;
+    stopSel.appendChild(o);
+  });
+}
+
+async function act(url) {
+  await post(url, { trip_id: tripSel.value });
+  await loadTrips();
+}
+
+async function pingStop() {
+  const s = stops.find(x => x.stop_id == stopSel.value);
+  if (!s) return;
+  await post('/api/driver/ping', {
+    trip_id: tripSel.value, lat: s.latitude, lon: s.longitude,
+    speed: Math.round(Math.random() * 20 + 10)
+  });
+}
+
+function pingGPS() {
+  if (!navigator.geolocation) { show('GPS not available', true); return; }
+  navigator.geolocation.getCurrentPosition(
+    p => post('/api/driver/ping', {
+      trip_id: tripSel.value, lat: p.coords.latitude, lon: p.coords.longitude,
+      speed: (p.coords.speed || 0) * 3.6
+    }),
+    e => show('GPS error: ' + e.message, true)
+  );
+}
+
+async function arrive() {
+  await post('/api/driver/arrive', {
+    trip_id: tripSel.value, stop_id: stopSel.value,
+    delay: document.getElementById('delay').value
+  });
+}
+
+tripSel.addEventListener('change', loadStops);
+loadTrips();
+</script>
+</body>
+</html>
