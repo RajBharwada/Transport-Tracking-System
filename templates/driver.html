@@ -120,10 +120,22 @@ function pingGPS() {
 }
 
 async function arrive() {
-  await post('/api/driver/arrive', {
+  const j = await post('/api/driver/arrive', {
     trip_id: tripSel.value, stop_id: stopSel.value,
     delay: document.getElementById('delay').value
   });
+  // Arriving at a stop also puts the bus at that stop on the commuter map:
+  // the map reads the latest GPS ping, and an arrival alone does not create one.
+  if (!j.error) {
+    const s = stops.find(x => x.stop_id == stopSel.value);
+    if (s) {
+      const msg = j.message;
+      await post('/api/driver/ping', {
+        trip_id: tripSel.value, lat: s.latitude, lon: s.longitude, speed: 0
+      });
+      show(msg + ' - bus moved to ' + s.name);
+    }
+  }
 }
 
 tripSel.addEventListener('change', loadStops);
