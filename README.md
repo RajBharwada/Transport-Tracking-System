@@ -35,3 +35,15 @@ Demo logins: `admin/admin123`, `rajesh/driver123`, `sunita/driver123`, `commuter
 ## Notes
 - Credentials and the Flask secret key in `app.py` are demo values (listed as a limitation in the report).
 - Routes and stops are loaded by SQL only; there is no admin screen for them.
+
+## Demo data
+`database/demo_data.sql` adds more Mumbai routes (R3-R6), stops, buses, drivers (logins `anil`, `meera`,
+`farhan`, `pooja`, `sandeep`, `kavita`, password `driver123`), two completed trips per route from yesterday
+(with delays and alerts) and one scheduled trip per driver for today.
+```bash
+sudo mysqldump --routines --triggers bus_tracking > before_demo.sql   # backup first
+sudo mysql bus_tracking < database/demo_data.sql
+python tools/build_route_paths.py                                     # road paths for the new routes
+```
+Start several buses at once by running the simulator in separate terminals, for example
+`python simulator.py R3 5 5` (route, bus id, driver id; ids are shown on the admin console).

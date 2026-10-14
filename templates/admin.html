@@ -99,6 +99,16 @@ function render(id, cols, rows, actions) {
   document.getElementById(id).innerHTML = h + '</table>';
 }
 
+async function loadRouteOptions() {
+  try {
+    const routes = await (await fetch('/api/routes')).json();
+    if (routes.length) {
+      document.getElementById('tRoute').innerHTML =
+        routes.map(r => '<option>' + esc(r.route_no) + '</option>').join('');
+    }
+  } catch (e) { /* keep the built-in options */ }
+}
+
 async function load() {
   const r = await fetch('/api/admin/overview');
   if (!r.ok) { show('Could not load data', true); return; }
@@ -143,6 +153,7 @@ function delBus(id) {
   if (confirm('Delete bus ' + id + '?')) post('/api/admin/bus/delete', {bus_id: id});
 }
 
+loadRouteOptions();
 load();
 </script>
 </body>
