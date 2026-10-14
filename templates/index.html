@@ -12,9 +12,12 @@
 <body>
 <header class="bar">
   <a class="brand" href="/"><i>B</i><b>Mumbai Bus Tracker</b></a>
-  <div class="who"><strong>{{ username }}</strong> <span class="role">({{ role }})</span>
+  <div class="who">
+    {% if username %}<strong>{{ username }}</strong> <span class="role">({{ role }})</span>
     {% if role == 'admin' %}<a href="/admin">Admin</a>{% endif %}
-    <a href="/logout">Logout</a></div>
+    {% if role == 'driver' %}<a href="/driver">Driver console</a>{% endif %}
+    <a href="/logout">Logout</a>
+    {% else %}<a href="/login">Staff login</a>{% endif %}</div>
 </header>
 <main class="mapwrap">
   <div id="map"></div>

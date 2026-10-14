@@ -109,7 +109,6 @@ def logout():
 
 
 @app.route("/api/live")
-@login_required
 def api_live():
     return jsonify(run_query("commuter", "SELECT * FROM v_live_buses"))
 
@@ -129,10 +128,11 @@ def api_eta(stop_id):
     return jsonify(run_proc("commuter", "sp_next_buses", (stop_id,)))
 
 @app.route("/")
-@login_required
 def home():
+    # The live map is public: commuters need no login, and a driver or admin
+    # signed in on another tab keeps their own session untouched.
     return render_template("index.html",
-                           username=session["username"], role=session["role"])
+                           username=session.get("username"), role=session.get("role"))
 
 
 @app.route("/api/routes")
