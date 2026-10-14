@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login - Mumbai Bus Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="login">
+  <section class="side">
+    <div class="brand"><i>B</i><b>Mumbai Bus Tracker</b></div>
+    <div class="blind" aria-hidden="true">
+      <div><span>R1</span><span>DADAR - BANDRA</span></div>
+      <div><span>R2</span><span>SION HOSPITAL - BKC</span></div>
+    </div>
+    <p>Live bus positions, arrival estimates and delay records from one database.</p>
+  </section>
+  <section class="form">
+    <form method="post">
+      <h1>Log in</h1>
+      {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+      <label for="username">Username</label>
+      <input id="username" name="username" autocomplete="username" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">Login</button>
+    </form>
+  </section>
+</div>
+</body>
+</html>
