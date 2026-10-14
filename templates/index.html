@@ -49,16 +49,20 @@ async function getJSON(url) {
   return r.json();
 }
 
-// Road-following path between the stops, from the public OSRM routing service.
-// If the service cannot be reached, the stops are joined by straight lines instead.
+// Road-following path between the stops: a saved file first, then the public OSRM
+// routing service; if neither is available, the stops are joined by straight lines.
 const roadCache = {};
 let routePath = [];
 let loadToken = 0;
 
-async function roadPath(pts) {
-  const key = pts.map(p => p.join(',')).join(';');
+async function roadPath(pts, routeNo) {
+  const key = routeNo + '|' + pts.map(p => p.join(',')).join(';');
   if (roadCache[key]) return roadCache[key];
-  try {
+  try {   // 1) saved path from tools/build_route_paths.py (works offline)
+    const f = await fetch('/static/routes/' + encodeURIComponent(routeNo) + '.json');
+    if (f.ok) { roadCache[key] = await f.json(); return roadCache[key]; }
+  } catch (e) { /* not generated yet */ }
+  try {   // 2) live OSRM lookup
     const coords = pts.map(p => p[1] + ',' + p[0]).join(';');
     const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + coords +
                           '?overview=full&geometries=geojson');
@@ -100,7 +104,7 @@ async function loadStops() {
   const token = ++loadToken;
   const stops = await getJSON('/api/route/' + sel.value + '/stops');
   const pts = stops.map(s => [s.latitude, s.longitude]);
-  const path = await roadPath(pts);
+  const path = await roadPath(pts, sel.value);
   if (token !== loadToken) return;   // a newer route was chosen meanwhile
   stopLayer.clearLayers();
   routePath = path;
