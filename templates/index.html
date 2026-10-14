@@ -49,6 +49,42 @@ async function getJSON(url) {
   return r.json();
 }
 
+// Road-following path between the stops, from the public OSRM routing service.
+// If the service cannot be reached, the stops are joined by straight lines instead.
+const roadCache = {};
+let routePath = [];
+let loadToken = 0;
+
+async function roadPath(pts) {
+  const key = pts.map(p => p.join(',')).join(';');
+  if (roadCache[key]) return roadCache[key];
+  try {
+    const coords = pts.map(p => p[1] + ',' + p[0]).join(';');
+    const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + coords +
+                          '?overview=full&geometries=geojson');
+    const j = await r.json();
+    if (j.code === 'Ok') {
+      roadCache[key] = j.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      return roadCache[key];
+    }
+  } catch (e) { /* fall back to straight lines */ }
+  return pts;
+}
+
+// Draw a bus on the nearest point of the road path (display only; stored data is unchanged).
+function snapToRoute(lat, lon) {
+  const here = map.latLngToLayerPoint([lat, lon]);
+  let best = null, bestD = Infinity;
+  for (let i = 0; i < routePath.length - 1; i++) {
+    const a = map.latLngToLayerPoint(routePath[i]);
+    const b = map.latLngToLayerPoint(routePath[i + 1]);
+    const c = L.LineUtil.closestPointOnSegment(here, a, b);
+    const d = here.distanceTo(c);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return (best && bestD < 80) ? map.layerPointToLatLng(best) : L.latLng(lat, lon);
+}
+
 async function loadRoutes() {
   const routes = await getJSON('/api/routes');
   routes.forEach(r => {
@@ -61,11 +97,15 @@ async function loadRoutes() {
 }
 
 async function loadStops() {
-  stopLayer.clearLayers();
+  const token = ++loadToken;
   const stops = await getJSON('/api/route/' + sel.value + '/stops');
   const pts = stops.map(s => [s.latitude, s.longitude]);
-  L.polyline(pts, { color: '#ffffff', weight: 9, opacity: .95 }).addTo(stopLayer);
-  L.polyline(pts, { color: '#c4161c', weight: 5 }).addTo(stopLayer);
+  const path = await roadPath(pts);
+  if (token !== loadToken) return;   // a newer route was chosen meanwhile
+  stopLayer.clearLayers();
+  routePath = path;
+  L.polyline(path, { color: '#ffffff', weight: 9, opacity: .95 }).addTo(stopLayer);
+  L.polyline(path, { color: '#c4161c', weight: 5 }).addTo(stopLayer);
 
   stops.forEach(s => {
     const m = L.circleMarker([s.latitude, s.longitude], {
@@ -89,7 +129,7 @@ async function loadStops() {
     });
   });
 
-  if (pts.length) map.fitBounds(pts, { paddingTopLeft: [340, 40], paddingBottomRight: [40, 40] });
+  if (path.length) map.fitBounds(path, { paddingTopLeft: [340, 40], paddingBottomRight: [40, 40] });
   await loadBuses();
 }
 
@@ -102,7 +142,7 @@ async function loadBuses() {
       html: '<div class="bus">' + esc(b.reg_no) + '<small>' + esc(b.speed_kmph) + ' km/h</small></div>',
       iconSize: null, iconAnchor: [50, 20]
     });
-    L.marker([b.latitude, b.longitude], { icon: icon }).addTo(busLayer);
+    L.marker(snapToRoute(b.latitude, b.longitude), { icon: icon }).addTo(busLayer);
   });
   statusEl.textContent = 'UPDATED ' + new Date().toLocaleTimeString();
 }
