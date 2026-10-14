@@ -517,7 +517,9 @@ DELIMITER ;
      bus_auth     - may only read Users (used by the login page)
    ============================================================================ */
 
-CREATE ROLE 'bus_admin', 'bus_driver', 'bus_commuter', 'bus_auth';
+-- IF NOT EXISTS: roles and users live on the SERVER, not inside the database,
+-- so they survive DROP DATABASE and would otherwise make a re-run fail.
+CREATE ROLE IF NOT EXISTS 'bus_admin', 'bus_driver', 'bus_commuter', 'bus_auth';
 
 -- Admin: everything in this database.
 GRANT ALL PRIVILEGES ON bus_tracking.* TO 'bus_admin';
@@ -542,10 +544,10 @@ GRANT EXECUTE ON PROCEDURE bus_tracking.sp_next_buses     TO 'bus_driver';
 GRANT SELECT ON bus_tracking.Users TO 'bus_auth';
 
 -- One demo account per role. DEMO PASSWORDS ONLY - change for real use.
-CREATE USER 'admin1'@'localhost'    IDENTIFIED BY 'Admin@123';
-CREATE USER 'driver1'@'localhost'   IDENTIFIED BY 'Driver@123';
-CREATE USER 'commuter1'@'localhost' IDENTIFIED BY 'Commuter@123';
-CREATE USER 'auth1'@'localhost'     IDENTIFIED BY 'Auth@123';
+CREATE USER IF NOT EXISTS 'admin1'@'localhost'    IDENTIFIED BY 'Admin@123';
+CREATE USER IF NOT EXISTS 'driver1'@'localhost'   IDENTIFIED BY 'Driver@123';
+CREATE USER IF NOT EXISTS 'commuter1'@'localhost' IDENTIFIED BY 'Commuter@123';
+CREATE USER IF NOT EXISTS 'auth1'@'localhost'     IDENTIFIED BY 'Auth@123';
 
 GRANT 'bus_admin'    TO 'admin1'@'localhost';
 GRANT 'bus_driver'   TO 'driver1'@'localhost';
