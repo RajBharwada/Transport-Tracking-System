@@ -1,27 +1,30 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mumbai Bus Tracker</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
-  body { margin: 0; font-family: sans-serif; }
-  #bar { padding: 10px; background: #1f3a5f; color: #fff;
-         display: flex; gap: 12px; align-items: center; }
-  #map { height: calc(100vh - 50px); }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<div id="bar">
-  <b>Mumbai Bus Tracker</b>
-  <select id="routeSel"></select>
-  <span id="status"></span>
-  <span style="margin-left:auto">{{ username }} ({{ role }}) &nbsp;
-    <a href="/logout" style="color:#fff">Logout</a>
-    {% if role == 'admin' %}&nbsp; <a href="/admin" style="color:#fff">Admin</a>{% endif %}</span>
-</div>
-<div id="map"></div>
+<header class="bar">
+  <a class="brand" href="/"><i>B</i><b>Mumbai Bus Tracker</b></a>
+  <div class="who"><strong>{{ username }}</strong> <span class="role">({{ role }})</span>
+    {% if role == 'admin' %}<a href="/admin">Admin</a>{% endif %}
+    <a href="/logout">Logout</a></div>
+</header>
+<main class="mapwrap">
+  <div id="map"></div>
+  <aside class="board">
+    <label for="routeSel">Route</label>
+    <select id="routeSel"></select>
+    <div id="status" role="status"></div>
+    <p class="hint">Select a stop on the map to see the next buses.</p>
+  </aside>
+</main>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -35,6 +38,11 @@ const sel = document.getElementById('routeSel');
 const statusEl = document.getElementById('status');
 const stopLayer = L.layerGroup().addTo(map);
 const busLayer = L.layerGroup().addTo(map);
+
+function esc(s) {
+  return String(s === null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 async function getJSON(url) {
   const r = await fetch(url);
@@ -56,30 +64,32 @@ async function loadStops() {
   stopLayer.clearLayers();
   const stops = await getJSON('/api/route/' + sel.value + '/stops');
   const pts = stops.map(s => [s.latitude, s.longitude]);
-  L.polyline(pts, { color: '#1f3a5f' }).addTo(stopLayer);
+  L.polyline(pts, { color: '#ffffff', weight: 9, opacity: .95 }).addTo(stopLayer);
+  L.polyline(pts, { color: '#c4161c', weight: 5 }).addTo(stopLayer);
 
   stops.forEach(s => {
     const m = L.circleMarker([s.latitude, s.longitude], {
-      radius: 7, color: '#1f3a5f', fillColor: '#ffffff', fillOpacity: 1
+      radius: 8, color: '#12171a', weight: 3, fillColor: '#f5c400', fillOpacity: 1
     }).addTo(stopLayer);
     m.bindTooltip(s.stop_seq + '. ' + s.name);
     m.on('click', async () => {
       const etas = await getJSON('/api/eta/' + s.stop_id);
-      let html = '<b>' + s.name + '</b><br>';
+      let html = '<b>' + esc(s.name) + '</b>';
       if (etas.length) {
         html += etas.map(e =>
-          e.route_no + ' (' + e.reg_no + '): ' +
+          '<div class="eta"><span>' + esc(e.route_no) + ' (' + esc(e.reg_no) + ')</span><span>' +
           (e.minutes_away <= 0 ? 'due' : e.minutes_away + ' min') +
-          (e.current_delay_min > 0 ? ' [+' + e.current_delay_min + ' min delay]' : '')
-        ).join('<br>');
+          (e.current_delay_min > 0 ? ' <span class="late">+' + e.current_delay_min + ' min late</span>' : '') +
+          '</span></div>'
+        ).join('');
       } else {
-        html += 'No buses coming';
+        html += '<div>No buses coming</div>';
       }
       m.bindPopup(html).openPopup();
     });
   });
 
-  if (pts.length) map.fitBounds(pts, { padding: [40, 40] });
+  if (pts.length) map.fitBounds(pts, { paddingTopLeft: [340, 40], paddingBottomRight: [40, 40] });
   await loadBuses();
 }
 
@@ -87,11 +97,14 @@ async function loadBuses() {
   const buses = await getJSON('/api/live');
   busLayer.clearLayers();
   buses.filter(b => b.route_no === sel.value).forEach(b => {
-    L.marker([b.latitude, b.longitude]).addTo(busLayer)
-      .bindTooltip(b.reg_no + ' | ' + b.speed_kmph + ' km/h',
-                   { permanent: true, direction: 'top' });
+    const icon = L.divIcon({
+      className: 'leaflet-div-icon busicon',
+      html: '<div class="bus">' + esc(b.reg_no) + '<small>' + esc(b.speed_kmph) + ' km/h</small></div>',
+      iconSize: null, iconAnchor: [50, 20]
+    });
+    L.marker([b.latitude, b.longitude], { icon: icon }).addTo(busLayer);
   });
-  statusEl.textContent = 'Updated ' + new Date().toLocaleTimeString();
+  statusEl.textContent = 'UPDATED ' + new Date().toLocaleTimeString();
 }
 
 sel.addEventListener('change', loadStops);

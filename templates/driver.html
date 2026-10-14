@@ -1,45 +1,44 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Driver - Mumbai Bus Tracker</title>
-<style>
-  body { font-family: sans-serif; margin: 0; background: #f4f6f9; }
-  #bar { padding: 10px; background: #1f3a5f; color: #fff; display: flex;
-         gap: 12px; align-items: center; }
-  #bar a { color: #fff; }
-  .card { background: #fff; margin: 12px; padding: 14px; border-radius: 8px; }
-  select, input, button { padding: 8px; margin: 4px 4px 4px 0; }
-  button { background: #1f3a5f; color: #fff; border: 0; border-radius: 4px; }
-  button.red { background: #b00020; }
-  #msg { margin: 12px; padding: 10px; border-radius: 6px; display: none; }
-  .ok { background: #d9f2e0; } .bad { background: #fbd9dc; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-<div id="bar">
-  <b>Driver Console</b>
-  <span style="margin-left:auto">{{ username }} &nbsp;
-    <a href="/logout">Logout</a></span>
-</div>
+<body class="driver">
+<header class="bar">
+  <a class="brand" href="/driver"><i>B</i><b>Driver Console</b></a>
+  <div class="who"><strong>{{ username }}</strong> <a href="/logout">Logout</a></div>
+</header>
 
-<div id="msg"></div>
+<div id="msg" role="status"></div>
 
-<div class="card">
-  <b>My trips</b><br>
-  <select id="tripSel"></select>
-  <button onclick="act('/api/driver/start')">Start trip</button>
-  <button class="red" onclick="act('/api/driver/end')">End trip</button>
-</div>
+<div class="page">
+  <section class="card">
+    <h2>My trips</h2>
+    <div class="row"><select id="tripSel" aria-label="Trip"></select></div>
+    <div class="row">
+      <button class="accent" onclick="act('/api/driver/start')">Start trip</button>
+      <button class="red" onclick="act('/api/driver/end')">End trip</button>
+    </div>
+  </section>
 
-<div class="card">
-  <b>Position and arrivals</b><br>
-  <select id="stopSel"></select><br>
-  <button onclick="pingStop()">Ping at selected stop</button>
-  <button onclick="pingGPS()">Ping with device GPS</button><br>
-  Delay (min, demo): <input id="delay" type="number" value="0" min="0" style="width:70px">
-  <button onclick="arrive()">Mark arrived at selected stop</button>
+  <section class="card">
+    <h2>Position and arrivals</h2>
+    <div class="row"><select id="stopSel" aria-label="Stop"></select></div>
+    <div class="row">
+      <button onclick="pingStop()">Ping at selected stop</button>
+      <button onclick="pingGPS()">Ping with device GPS</button>
+    </div>
+    <div class="row">
+      <label class="field" for="delay">Delay (min, demo):
+        <input id="delay" type="number" value="0" min="0"></label>
+      <button class="accent" onclick="arrive()">Mark arrived at selected stop</button>
+    </div>
+  </section>
 </div>
 
 <script>

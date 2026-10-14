@@ -1,27 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login - Mumbai Bus Tracker</title>
-<style>
-  body { font-family: sans-serif; background: #1f3a5f; display: flex;
-         justify-content: center; align-items: center; height: 100vh; margin: 0; }
-  form { background: #fff; padding: 24px; border-radius: 8px; width: 260px; }
-  input { width: 100%; padding: 8px; margin: 6px 0 12px; box-sizing: border-box; }
-  button { width: 100%; padding: 10px; background: #1f3a5f; color: #fff; border: 0; }
-  .err { color: #b00020; margin-bottom: 8px; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<form method="post">
-  <h3>Mumbai Bus Tracker</h3>
-  {% if error %}<div class="err">{{ error }}</div>{% endif %}
-  <label>Username</label>
-  <input name="username" required>
-  <label>Password</label>
-  <input name="password" type="password" required>
-  <button type="submit">Login</button>
-</form>
+<div class="login">
+  <section class="side">
+    <div class="brand"><i>B</i><b>Mumbai Bus Tracker</b></div>
+    <div class="blind" aria-hidden="true">
+      <div><span>R1</span><span>DADAR - BANDRA</span></div>
+      <div><span>R2</span><span>SION HOSPITAL - BKC</span></div>
+    </div>
+    <p>Live bus positions, arrival estimates and delay records from one database.</p>
+  </section>
+  <section class="form">
+    <form method="post">
+      <h1>Log in</h1>
+      {% if error %}<div class="err" role="alert">{{ error }}</div>{% endif %}
+      <label for="username">Username</label>
+      <input id="username" name="username" autocomplete="username" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">Login</button>
+    </form>
+  </section>
+</div>
 </body>
-</htm
+</html>

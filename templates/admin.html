@@ -1,67 +1,63 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin - Mumbai Bus Tracker</title>
-<style>
-  body { font-family: sans-serif; margin: 0; background: #f4f6f9; }
-  #bar { padding: 10px; background: #1f3a5f; color: #fff; display: flex;
-         gap: 12px; align-items: center; }
-  #bar a { color: #fff; }
-  .card { background: #fff; margin: 12px; padding: 14px; border-radius: 8px;
-          overflow-x: auto; }
-  input, select, button { padding: 7px; margin: 3px 3px 3px 0; }
-  button { background: #1f3a5f; color: #fff; border: 0; border-radius: 4px; cursor: pointer; }
-  button.red { background: #b00020; }
-  button.amber { background: #b26a00; }
-  table { border-collapse: collapse; width: 100%; font-size: 14px; }
-  th, td { border-bottom: 1px solid #ddd; padding: 6px 8px; text-align: left; }
-  th { background: #eef1f6; }
-  #msg { margin: 12px; padding: 10px; border-radius: 6px; display: none; }
-  .ok { background: #d9f2e0; } .bad { background: #fbd9dc; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<div id="bar">
-  <b>Admin Console</b>
-  <a href="/">Live map</a>
-  <span style="margin-left:auto">{{ username }} &nbsp; <a href="/logout">Logout</a></span>
+<header class="bar">
+  <a class="brand" href="/admin"><i>B</i><b>Admin Console</b></a>
+  <nav><a href="/">Live map</a></nav>
+  <div class="who"><strong>{{ username }}</strong> <a href="/logout">Logout</a></div>
+</header>
+
+<div id="msg" role="status"></div>
+
+<div class="page">
+  <div class="grid3">
+    <section class="card">
+      <h2>Add bus</h2>
+      <div class="row"><input id="bReg" placeholder="Reg no, e.g. MH01AB1005" aria-label="Registration number" style="flex:1 1 100%"></div>
+      <div class="row">
+        <input id="bCap" type="number" placeholder="Capacity" aria-label="Capacity" style="width:110px">
+        <select id="bStatus" aria-label="Status">
+          <option>active</option><option>maintenance</option><option>retired</option>
+        </select>
+      </div>
+      <div class="row"><button class="accent" onclick="addBus()">Add bus</button></div>
+    </section>
+
+    <section class="card">
+      <h2>Add driver</h2>
+      <div class="row"><input id="dName" placeholder="Name" aria-label="Name" style="flex:1 1 100%"></div>
+      <div class="row"><input id="dPhone" placeholder="Phone" aria-label="Phone" style="flex:1 1 40%">
+        <input id="dLic" placeholder="Licence no" aria-label="Licence number" style="flex:1 1 40%"></div>
+      <div class="row"><button class="accent" onclick="addDriver()">Add driver</button></div>
+    </section>
+
+    <section class="card">
+      <h2>Schedule trip</h2>
+      <div class="row">
+        <select id="tRoute" aria-label="Route"><option>R1</option><option>R2</option></select>
+        <input id="tBus" type="number" placeholder="Bus id" aria-label="Bus id" style="width:100px">
+        <input id="tDriver" type="number" placeholder="Driver id" aria-label="Driver id" style="width:110px">
+      </div>
+      <div class="row"><button class="accent" onclick="addTrip()">Schedule</button></div>
+    </section>
+  </div>
+
+  <section class="card stack"><h2>Buses</h2><div id="buses"></div></section>
+  <section class="card"><h2>Drivers</h2><div id="drivers"></div></section>
+  <section class="card"><h2>Recent trips</h2><div id="trips"></div></section>
+  <div class="grid2">
+    <section class="card"><h2>Delay report (view)</h2><div id="report"></div></section>
+    <section class="card"><h2>Recent delay alerts</h2><div id="alerts"></div></section>
+  </div>
 </div>
-
-<div id="msg"></div>
-
-<div class="card">
-  <b>Add bus</b><br>
-  <input id="bReg" placeholder="Reg no, e.g. MH01AB1005">
-  <input id="bCap" type="number" placeholder="Capacity" style="width:100px">
-  <select id="bStatus">
-    <option>active</option><option>maintenance</option><option>retired</option>
-  </select>
-  <button onclick="addBus()">Add bus</button>
-</div>
-
-<div class="card">
-  <b>Add driver</b><br>
-  <input id="dName" placeholder="Name">
-  <input id="dPhone" placeholder="Phone">
-  <input id="dLic" placeholder="Licence no">
-  <button onclick="addDriver()">Add driver</button>
-</div>
-
-<div class="card">
-  <b>Schedule trip</b><br>
-  <select id="tRoute"><option>R1</option><option>R2</option></select>
-  <input id="tBus" type="number" placeholder="Bus id" style="width:90px">
-  <input id="tDriver" type="number" placeholder="Driver id" style="width:90px">
-  <button onclick="addTrip()">Schedule</button>
-</div>
-
-<div class="card"><b>Buses</b><div id="buses"></div></div>
-<div class="card"><b>Drivers</b><div id="drivers"></div></div>
-<div class="card"><b>Recent trips</b><div id="trips"></div></div>
-<div class="card"><b>Delay report (view)</b><div id="report"></div></div>
-<div class="card"><b>Recent delay alerts</b><div id="alerts"></div></div>
 
 <script>
 const msg = document.getElementById('msg');
@@ -88,11 +84,16 @@ async function post(url, body) {
   await load();
 }
 
+function cell(key, value) {
+  if (key === 'status') return '<span class="tag tag-' + esc(value) + '">' + esc(value) + '</span>';
+  return esc(value);
+}
+
 function render(id, cols, rows, actions) {
   let h = '<table><tr>' + cols.map(c => '<th>' + esc(c[0]) + '</th>').join('') +
           (actions ? '<th>Actions</th>' : '') + '</tr>';
   rows.forEach(r => {
-    h += '<tr>' + cols.map(c => '<td>' + esc(r[c[1]]) + '</td>').join('') +
+    h += '<tr>' + cols.map(c => '<td>' + cell(c[1], r[c[1]]) + '</td>').join('') +
          (actions ? '<td>' + actions(r) + '</td>' : '') + '</tr>';
   });
   document.getElementById(id).innerHTML = h + '</table>';
@@ -104,9 +105,9 @@ async function load() {
   const d = await r.json();
   render('buses', [['ID','bus_id'],['Reg no','reg_no'],['Capacity','capacity'],['Status','status']],
     d.buses, b =>
-      '<button class="amber" onclick="setStatus(' + b.bus_id + ',\'maintenance\')">Maintenance</button>' +
-      '<button onclick="setStatus(' + b.bus_id + ',\'active\')">Active</button>' +
-      '<button class="red" onclick="delBus(' + b.bus_id + ')">Delete</button>');
+      '<button class="amber small" onclick="setStatus(' + b.bus_id + ',\'maintenance\')">Maintenance</button>' +
+      '<button class="small" onclick="setStatus(' + b.bus_id + ',\'active\')">Active</button>' +
+      '<button class="red small" onclick="delBus(' + b.bus_id + ')">Delete</button>');
   render('drivers', [['ID','driver_id'],['Name','name'],['Phone','phone'],['Licence','license_no']], d.drivers);
   render('trips', [['Trip','trip_id'],['Route','route_no'],['Bus','reg_no'],['Driver','driver_name'],['Status','status']], d.trips);
   render('report', [['Route','route_no'],['Arrivals','arrivals_recorded'],['Avg delay','avg_delay_min'],['Max delay','max_delay_min'],['Alerts','alerts_raised']], d.report);
