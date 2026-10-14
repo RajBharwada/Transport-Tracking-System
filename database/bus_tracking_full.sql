@@ -1,50 +1,12 @@
-/* ============================================================================
-   REAL-TIME PUBLIC TRANSPORT TRACKING FOR SMALL CITIES   (SIH 2025, PS 25013)
-   DBMS Mini Project - Xavier Institute of Engineering, Mumbai University
-   Authors : Raj Bharwada (Roll 13), Shaantanu Barao (Roll 8)
-   Guide   : Prof. Lalita Moharkar
-   Server  : MySQL 8.0
-
-   SINGLE-FILE BUILD SCRIPT
-   ----------------------------------------------------------------------------
-   Run on a fresh server as a user that can create databases, users and roles:
-
-        sudo mysql < bus_tracking_full.sql
-
-   Contents, in dependency order (do not reorder - later parts need earlier ones):
-
-        1. Database
-        2. Tables                       (City ... Users)
-        3. Seed data                    (Mumbai demo city, stops, routes, buses)
-        4. Triggers                     (business rules + delay calculation)
-        5. Views                        (v_live_buses, v_delay_report,
-                                         v_route_stops, v_driver_trips)
-        6. Stored procedures            (sp_next_buses, sp_start_trip,
-                                         sp_end_trip, sp_record_arrival)
-        7. Roles, accounts, privileges  (admin / driver / commuter / auth)
-        7b. Application logins          (Users table)
-        8. Sample activity + reports    (optional, section 8 of this file)
-        9. Test cases                   (OPTIONAL - commented out on purpose)
-
-   Why this order: GRANT on a view or procedure fails if the object does not
-   exist yet, so views and procedures are created before roles are granted.
-
-   Section 7b inserts the application logins, so this one file is enough to
-   build a working database.
-   ============================================================================ */
-
-
-/* ============================================================================
-   1. DATABASE
-   ============================================================================ */
+-- 1. DATABASE 
 CREATE DATABASE IF NOT EXISTS bus_tracking;
 USE bus_tracking;
 
 
-/* ============================================================================
-   2. TABLES
-   Creation order follows the foreign keys: parents first, children after.
-   ============================================================================ */
+/* 
+  2. TABLES
+  Creation order follows the foreign keys: parents first, children after.
+*/
 
 -- City: the cities served by the system (the demo uses only Mumbai).
 CREATE TABLE City (
@@ -57,13 +19,13 @@ CREATE TABLE City (
 -- Route: a named bus line (R1, R2 ...) belonging to one city.
 CREATE TABLE Route (
   route_id INT AUTO_INCREMENT PRIMARY KEY,
-  route_no VARCHAR(10)  NOT NULL UNIQUE,        -- short public number, e.g. 'R1'
+  route_no VARCHAR(10)  NOT NULL UNIQUE,        -- e.g. 'R1'
   name     VARCHAR(120) NOT NULL,
   city_id  INT NOT NULL,
   FOREIGN KEY (city_id) REFERENCES City(city_id) ON DELETE RESTRICT
 );
 
--- Stop: a physical bus stop with GPS coordinates.
+-- Bus Stop
 CREATE TABLE Stop (
   stop_id   INT AUTO_INCREMENT PRIMARY KEY,
   name      VARCHAR(100) NOT NULL,
@@ -91,7 +53,7 @@ CREATE TABLE Route_Stop (
   FOREIGN KEY (stop_id)  REFERENCES Stop(stop_id)   ON DELETE RESTRICT
 );
 
--- Driver: bus drivers (phone and licence must be unique).
+-- Driver
 CREATE TABLE Driver (
   driver_id  INT AUTO_INCREMENT PRIMARY KEY,
   name       VARCHAR(100) NOT NULL,
@@ -99,10 +61,10 @@ CREATE TABLE Driver (
   license_no VARCHAR(20)  NOT NULL UNIQUE
 );
 
--- Bus: the vehicles. Only 'active' buses may be put on a trip (see triggers).
+-- Bus: Only 'active' buses may be put on a trip 
 CREATE TABLE Bus (
   bus_id   INT AUTO_INCREMENT PRIMARY KEY,
-  reg_no   VARCHAR(15) NOT NULL UNIQUE,        -- registration plate
+  reg_no   VARCHAR(15) NOT NULL UNIQUE,        
   capacity INT NOT NULL,
   status   ENUM('active','maintenance','retired') NOT NULL DEFAULT 'active',
   CHECK (capacity > 0)
@@ -125,7 +87,6 @@ CREATE TABLE Trip (
 );
 
 -- GPS_Log: location pings sent by the driver's device during a trip.
--- The composite index makes "latest ping of a trip" lookups fast.
 CREATE TABLE GPS_Log (
   log_id     BIGINT AUTO_INCREMENT PRIMARY KEY,
   trip_id    INT NOT NULL,
@@ -166,7 +127,7 @@ CREATE TABLE Delay_Alert (
   FOREIGN KEY (arrival_id) REFERENCES Stop_Arrival(arrival_id) ON DELETE CASCADE
 );
 
--- Users: application logins used by the Flask app (hashed passwords only).
+-- Users
 -- A driver login is linked to its Driver row through driver_id.
 CREATE TABLE Users (
   user_id       INT AUTO_INCREMENT PRIMARY KEY,
@@ -180,9 +141,9 @@ CREATE TABLE Users (
 SHOW TABLES;
 
 
-/* ============================================================================
-   3. SEED DATA  (Mumbai demo city)
-   ============================================================================ */
+/*
+  3. SEED DATA  (Mumbai demo city)
+*/
 
 INSERT INTO City (city_id, name, state) VALUES
 (1, 'Mumbai', 'Maharashtra');
@@ -200,13 +161,13 @@ INSERT INTO Route (route_id, route_no, name, city_id) VALUES
 (1, 'R1', 'Dadar Station - Bandra Station',        1),
 (2, 'R2', 'Sion Hospital - Bandra Kurla Complex',  1);
 
--- (route, stop, position on route, planned minutes after trip start)
 INSERT INTO Route_Stop (route_id, stop_id, stop_seq, sched_offset_min) VALUES
 (1, 1, 1,  0),    -- R1: Dadar -> Shivaji Park -> Mahim -> Xavier -> Bandra
 (1, 2, 2,  6),
 (1, 3, 3, 11),
 (1, 4, 4, 16),
 (1, 5, 5, 22),
+
 (2, 6, 1,  0),    -- R2: Sion -> Dadar -> Mahim -> Bandra -> BKC
 (2, 1, 2, 10),
 (2, 3, 3, 18),
@@ -233,10 +194,9 @@ JOIN Stop  s ON s.stop_id  = rs.stop_id
 ORDER BY r.route_no, rs.stop_seq;
 
 
-/* ============================================================================
-   4. TRIGGERS
-   Business rules enforced inside the database so no client can bypass them.
-   ============================================================================ */
+/*
+  4. TRIGGERS
+*/
 DELIMITER $$
 
 -- Rule 1 (on INSERT): a scheduled/running trip needs an ACTIVE bus; a RUNNING
@@ -293,7 +253,7 @@ BEGIN
   END IF;
 END$$
 
--- Rule 3: delay is derived, never typed in. When actual_time is recorded the
+-- Rule 3: delay is derived. When actual_time is recorded the
 -- delay (in minutes) is calculated from the scheduled time.
 CREATE TRIGGER trg_arrival_before_update
 BEFORE UPDATE ON Stop_Arrival
@@ -321,11 +281,10 @@ DELIMITER ;
 SHOW TRIGGERS FROM bus_tracking;
 
 
-/* ============================================================================
-   5. VIEWS
-   Views are what commuters and drivers are allowed to read, so they never
-   need direct access to the base tables.
-   ============================================================================ */
+/*
+  5. VIEWS
+  This is what commuters and drivers are allowed to read.
+*/
 
 -- v_live_buses: the latest GPS position of every RUNNING trip (map data).
 -- The sub-query picks the newest log row (highest log_id) for each trip.
@@ -341,7 +300,7 @@ JOIN GPS_Log g ON g.trip_id  = t.trip_id
 WHERE t.status = 'running'
   AND g.log_id = (SELECT MAX(g2.log_id) FROM GPS_Log g2 WHERE g2.trip_id = t.trip_id);
 
--- v_delay_report: per-route punctuality summary for the admin
+-- v_delay_report
 -- (arrivals recorded, average delay, worst delay, alerts raised).
 CREATE VIEW v_delay_report AS
 SELECT r.route_no,
@@ -355,8 +314,7 @@ JOIN Stop_Arrival sa ON sa.trip_id = t.trip_id AND sa.actual_time IS NOT NULL
 LEFT JOIN Delay_Alert da ON da.arrival_id = sa.arrival_id
 GROUP BY r.route_id, r.route_no;
 
--- v_route_stops: ordered stop list with coordinates for every route
--- (used to draw the route on the map).
+-- v_route_stops
 CREATE VIEW v_route_stops AS
 SELECT r.route_no, rs.stop_seq, s.stop_id, s.name,
        s.latitude, s.longitude, rs.sched_offset_min
@@ -364,7 +322,7 @@ FROM Route_Stop rs
 JOIN Route r ON r.route_id = rs.route_id
 JOIN Stop  s ON s.stop_id  = rs.stop_id;
 
--- v_driver_trips: trips a driver can still act on (scheduled or running).
+-- v_driver_trips
 -- Feeds the trip drop-down on the driver console.
 CREATE VIEW v_driver_trips AS
 SELECT t.trip_id, t.driver_id, r.route_no, r.name AS route_name,
@@ -375,9 +333,9 @@ JOIN Bus b   ON b.bus_id   = t.bus_id
 WHERE t.status IN ('scheduled','running');
 
 
-/* ============================================================================
-   6. STORED PROCEDURES
-   ============================================================================ */
+/*
+  6. STORED PROCEDURES
+*/
 DELIMITER $$
 
 -- sp_next_buses(stop): upcoming buses for one stop (the commuter's question
@@ -415,7 +373,7 @@ END$$
 
 -- sp_start_trip(trip): moves a SCHEDULED trip to RUNNING and creates one
 -- Stop_Arrival row per stop of the route (scheduled time = now + offset).
--- Runs as one transaction: either everything happens or nothing does.
+-- Runs as one transaction
 CREATE PROCEDURE sp_start_trip(IN p_trip_id INT)
 BEGIN
   DECLARE v_status VARCHAR(20);
@@ -508,54 +466,50 @@ END$$
 DELIMITER ;
 
 
-/* ============================================================================
-   7. ROLES, ACCOUNTS AND PRIVILEGES  (least privilege)
-   Four roles; each demo account gets exactly one role.
-     bus_admin    - full control of the bus_tracking database
-     bus_driver   - read live data, send GPS, start/end trips, record arrivals
-     bus_commuter - read-only: live buses, route stops, next-bus lookup
-     bus_auth     - may only read Users (used by the login page)
-   ============================================================================ */
+/*
+  7. ROLES, ACCOUNTS AND PRIVILEGES  (least privilege)
+  Four roles; each demo account gets exactly one role.
+    bus_admin    - full control of the bus_tracking database
+    bus_driver   - read live data, send GPS, start/end trips, record arrivals
+    bus_commuter - read-only: live buses, route stops, next-bus lookup
+    bus_auth     - may only read Users (used by the login page)
+*/
 
--- IF NOT EXISTS: roles and users live on the SERVER, not inside the database,
--- so they survive DROP DATABASE and would otherwise make a re-run fail.
 CREATE ROLE IF NOT EXISTS 'bus_admin', 'bus_driver', 'bus_commuter', 'bus_auth';
 
 -- Admin: everything in this database.
 GRANT ALL PRIVILEGES ON bus_tracking.* TO 'bus_admin';
 
 -- Commuter: views + the next-bus procedure only. No table access at all.
-GRANT SELECT  ON bus_tracking.v_live_buses  TO 'bus_commuter';
-GRANT SELECT  ON bus_tracking.v_route_stops TO 'bus_commuter';
+GRANT SELECT ON bus_tracking.v_live_buses TO 'bus_commuter';
+GRANT SELECT ON bus_tracking.v_route_stops TO 'bus_commuter';
 GRANT EXECUTE ON PROCEDURE bus_tracking.sp_next_buses TO 'bus_commuter';
 
 -- Driver: can only INSERT into GPS_Log (never read/modify other tables
 -- directly) and operates trips through procedures.
-GRANT SELECT  ON bus_tracking.v_live_buses   TO 'bus_driver';
-GRANT SELECT  ON bus_tracking.v_route_stops  TO 'bus_driver';
-GRANT SELECT  ON bus_tracking.v_driver_trips TO 'bus_driver';
-GRANT INSERT  ON bus_tracking.GPS_Log        TO 'bus_driver';
-GRANT EXECUTE ON PROCEDURE bus_tracking.sp_start_trip     TO 'bus_driver';
-GRANT EXECUTE ON PROCEDURE bus_tracking.sp_end_trip       TO 'bus_driver';
+GRANT SELECT ON bus_tracking.v_live_buses TO 'bus_driver';
+GRANT SELECT ON bus_tracking.v_route_stops TO 'bus_driver';
+GRANT SELECT ON bus_tracking.v_driver_trips TO 'bus_driver';
+GRANT INSERT ON bus_tracking.GPS_Log TO 'bus_driver';
+GRANT EXECUTE ON PROCEDURE bus_tracking.sp_start_trip TO 'bus_driver';
+GRANT EXECUTE ON PROCEDURE bus_tracking.sp_end_trip TO 'bus_driver';
 GRANT EXECUTE ON PROCEDURE bus_tracking.sp_record_arrival TO 'bus_driver';
-GRANT EXECUTE ON PROCEDURE bus_tracking.sp_next_buses     TO 'bus_driver';
+GRANT EXECUTE ON PROCEDURE bus_tracking.sp_next_buses TO 'bus_driver';
 
 -- Auth: the login page may read the Users table, nothing else.
 GRANT SELECT ON bus_tracking.Users TO 'bus_auth';
 
--- One demo account per role. DEMO PASSWORDS ONLY - change for real use.
-CREATE USER IF NOT EXISTS 'admin1'@'localhost'    IDENTIFIED BY 'Admin@123';
-CREATE USER IF NOT EXISTS 'driver1'@'localhost'   IDENTIFIED BY 'Driver@123';
+-- One demo account per role.
+CREATE USER IF NOT EXISTS 'admin1'@'localhost' IDENTIFIED BY 'Admin@123';
+CREATE USER IF NOT EXISTS 'driver1'@'localhost' IDENTIFIED BY 'Driver@123';
 CREATE USER IF NOT EXISTS 'commuter1'@'localhost' IDENTIFIED BY 'Commuter@123';
-CREATE USER IF NOT EXISTS 'auth1'@'localhost'     IDENTIFIED BY 'Auth@123';
+CREATE USER IF NOT EXISTS 'auth1'@'localhost' IDENTIFIED BY 'Auth@123';
 
-GRANT 'bus_admin'    TO 'admin1'@'localhost';
-GRANT 'bus_driver'   TO 'driver1'@'localhost';
+GRANT 'bus_admin' TO 'admin1'@'localhost';
+GRANT 'bus_driver' TO 'driver1'@'localhost';
 GRANT 'bus_commuter' TO 'commuter1'@'localhost';
-GRANT 'bus_auth'     TO 'auth1'@'localhost';
+GRANT 'bus_auth' TO 'auth1'@'localhost';
 
--- Roles are not active after login unless made default; without this,
--- every query by these accounts would fail with "access denied".
 SET DEFAULT ROLE ALL TO 'admin1'@'localhost', 'driver1'@'localhost',
                         'commuter1'@'localhost', 'auth1'@'localhost';
 
@@ -565,6 +519,265 @@ SHOW GRANTS FOR 'commuter1'@'localhost' USING 'bus_commuter';
 REVOKE INSERT ON bus_tracking.GPS_Log FROM 'bus_driver';
 GRANT  INSERT ON bus_tracking.GPS_Log TO   'bus_driver';
 SHOW GRANTS FOR 'bus_driver';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* ============================================================================
